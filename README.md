@@ -1,7 +1,6 @@
 # Imposter – Malayalam Party Word Game
 
-A pass-the-phone or play-on-your-own-phone party game for Malayalam speakers, inspired by
-[Imposter Malayalam](https://abinm8.github.io/imposter-malayalam-doc/). Everyone gets the same
+A pass-the-phone or play-on-your-own-phone party game for Malayalam speaker. Everyone gets the same
 secret word, except the Imposter. Give clues, vote, and find them out.
 
 ## Modes
