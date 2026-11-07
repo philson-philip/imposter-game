@@ -23,7 +23,7 @@ const STEPS = [
   },
   {
     title: "Vote & reveal",
-    body: "Discuss, then vote out the player you suspect. Reveal the truth. If the Imposter is caught, they get one last chance: guess the word to steal points.",
+    body: "Discuss, then vote out the player you suspect. In online rooms, an innocent player sits out until the next round. The host can continue with more clues and votes, or end the round so the hidden Imposter wins. If the Imposter is caught, they get one last chance to guess the word.",
   },
 ];
 
@@ -57,7 +57,7 @@ export default function HowToPlay() {
             <dd className="font-mono font-semibold text-emerald-400">+{SCORING.crewCatch} each</dd>
           </div>
           <div className="flex items-center justify-between py-3">
-            <dt className="text-mist-300">Imposter survives the vote</dt>
+            <dt className="text-mist-300">Host ends the round with Imposter uncaught</dt>
             <dd className="font-mono font-semibold text-rose-400">+{SCORING.imposterEscape} Imposter</dd>
           </div>
           <div className="flex items-center justify-between py-3">

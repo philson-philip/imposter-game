@@ -1,7 +1,7 @@
 import type { Word } from "./types";
 
 export type RoomStatus = "lobby" | "playing" | "ended";
-export type OnlinePhase = "clues" | "vote" | "guess" | "reveal";
+export type OnlinePhase = "clues" | "vote" | "decision" | "guess" | "reveal";
 export type WordDisplay = "both" | "en" | "ml";
 export type ClueMode = "typed" | "spoken";
 
@@ -19,6 +19,8 @@ export type Clue = { playerId: string; text: string; skipped: boolean };
 
 export type OnlineRound = {
   number: number;
+  cycle?: number;
+  eliminatedIds?: string[];
   categoryIds: string[];
   categoryId: string;
   word: Word;
@@ -76,6 +78,8 @@ export type RoomAction =
   | { type: "startVoting" }
   | { type: "vote"; targetId: string }
   | { type: "endVoting" }
+  | { type: "continueRound" }
+  | { type: "endRound" }
   | { type: "guess"; index: number }
   | { type: "skipGuess" }
   | { type: "endGame" }
@@ -103,6 +107,8 @@ export type TallyRow = { playerId: string; count: number; voters: string[] };
 
 export type RoundView = {
   number: number;
+  cycle: number;
+  eliminatedIds: string[];
   phase: OnlinePhase;
   categoryIds: string[];
   /** Visible to everyone only when the imposter hint is on or the round is over. */
@@ -116,6 +122,7 @@ export type RoundView = {
   candidates: string[] | null;
   you: {
     isParticipant: boolean;
+    isEliminated: boolean;
     isImposter: boolean;
     word: Word | null;
     category: CategoryInfo | null;

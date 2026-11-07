@@ -9,10 +9,12 @@ secret word, except the Imposter. Give clues, vote, and find them out.
 - **Online rooms** – the host creates a room and shares a 5-character code or link. Friends join
   on their own phones. The host picks the category per round, starts rounds, and can end the game.
   Clues can be typed in the app (turn-based) or spoken out loud. Voting is secret on each phone.
+  An innocent player voted out sits out until the next round. The host can continue with more
+  clues and votes using the same word and imposter, or end the round and award the imposter a win.
 - **Pass & play** – one phone passed around the group. No account, no network needed after load.
 
 Scoring: crew members earn 1 point each for voting out the Imposter; the Imposter earns 3 for
-surviving the vote, or 2 for guessing the word after being caught. Words are never repeated in a
+surviving until the host ends the round, or 2 for guessing the word after being caught. Words are never repeated in a
 session until a category runs dry.
 
 ## Development

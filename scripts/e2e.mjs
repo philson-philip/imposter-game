@@ -175,8 +175,39 @@ try {
   await waitText(host.page, /Who is the Imposter\?/);
   await waitText(players[0].page, /Who is the Imposter\?/);
   ok(true, "spoken round reached the vote through the next-speaker control");
-  await clickText(host.page, "End voting now");
+  const imposter2 = (await Promise.all(all.map(async p => ({ p, imposter: (await text(p.page)).includes("You're the Imposter") })))).find(p => p.imposter).p;
+  let active = [...all];
+  for (let cycle = 1; cycle <= 3; cycle++) {
+    const victim = active.find(p => p !== imposter2 && p !== host) ?? active.find(p => p !== imposter2);
+    const victimName = victim === host ? "Philson" : victim.name;
+    for (const p of active.filter(p => p !== victim)) {
+      const options = await buttonsPressed(p.page);
+      const labels = await Promise.all(options.map(b => b.evaluate(el => el.innerText)));
+      await options[labels.findIndex(label => label.includes(victimName))].click();
+      await p.page.waitForNetworkIdle({ idleTime: 100, timeout: 15000 });
+    }
+    await clickText(host.page, "End voting now");
+    for (const p of all) await waitText(p.page, /The imposter is still hidden/);
+    ok(!(await text(imposter2.page)).includes("The word was"), `cycle ${cycle}: wrong vote keeps the secret hidden`);
+    if (cycle === 1) {
+      await shot(host.page, "18b-host-decision-mobile.png");
+      await host.page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+      await shot(host.page, "18c-host-decision-desktop.png");
+      await host.page.setViewport(phone);
+    }
+    active = active.filter(p => p !== victim);
+    if (cycle < 3) {
+      await clickText(host.page, "Continue with more clues");
+      for (const p of all) await waitText(p.page, /Give your clues/);
+      await waitText(victim.page, /You were voted out/);
+      ok((await buttonsPressed(victim.page)).length === 0, "voted-out player sits out");
+      for (let i = 0; i < active.length; i++) await clickText(host.page, "has spoken, next");
+      for (const p of active) await waitText(p.page, /Who is the Imposter\?/);
+    }
+  }
+  await clickText(host.page, "End round — imposter wins");
   await waitText(host.page, /Scores/, 20000);
+  ok(true, "host ended the round after three cycles and revealed the imposter win");
   await clickText(host.page, "End game and show final standings");
   for (const p of all) await waitText(p.page, /Game over/);
   ok(true, "final standings shown to everyone");

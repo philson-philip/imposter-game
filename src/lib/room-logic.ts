@@ -210,6 +210,8 @@ function reduce(
       const order = ids.map((_, i) => ids[(starter + i) % ids.length]);
       const round: OnlineRound = {
         number: room.roundsPlayed + 1,
+        cycle: 1,
+        eliminatedIds: [],
         categoryIds: settings.categoryIds,
         categoryId,
         word,
@@ -262,13 +264,14 @@ function reduce(
     case "vote": {
       const round = requireRound(room);
       if (round.phase !== "vote") throw new RoomError(409, "Voting isn't open.");
-      if (!round.playerIds.includes(actor.id)) throw new RoomError(403, "You joined after this round started.");
+      const ids = activeIds(round);
+      if (!ids.includes(actor.id)) throw new RoomError(403, "You're sitting out this round.");
       if (action.targetId === actor.id) throw new RoomError(400, "You can't vote for yourself.");
-      if (!round.playerIds.includes(action.targetId)) throw new RoomError(400, "That player isn't in this round.");
+      if (!ids.includes(action.targetId)) throw new RoomError(400, "That player isn't in this vote.");
       if (round.candidates && !round.candidates.includes(action.targetId)) throw new RoomError(400, "Pick one of the tied players.");
       const votes = { ...round.votes, [actor.id]: action.targetId };
       const updated = { ...round, votes };
-      const everyoneVoted = round.playerIds.every((id) => id in votes);
+      const everyoneVoted = ids.every((id) => id in votes);
       return withRound(room, everyoneVoted ? finishVoting(room, updated, now, categories, random) : updated);
     }
 
@@ -299,10 +302,30 @@ function reduce(
       return withRound(room, reveal(room, { ...round, guessedWord: false }, now));
     }
 
+    case "continueRound": {
+      requireHost(room, actor.id);
+      const round = requireRound(room);
+      if (round.phase !== "decision") throw new RoomError(409, "Finish this vote first.");
+      if (activeIds(round).length < 2) throw new RoomError(409, "Not enough players remain. End this round.");
+      return withRound(room, {
+        ...round, phase: "clues", phaseAt: now, cycle: (round.cycle ?? 1) + 1,
+        clues: [], votes: {}, revote: false, candidates: null, eliminatedId: null, noElimination: false,
+      });
+    }
+
+    case "endRound": {
+      requireHost(room, actor.id);
+      const round = requireRound(room);
+      if (round.phase !== "decision") throw new RoomError(409, "Finish this vote first.");
+      return withRound(room, reveal(room, round, now));
+    }
+
     case "endGame": {
       requireHost(room, actor.id);
       if (room.status === "ended") return room;
-      const round = room.round && room.round.phase !== "reveal" ? { ...room.round, aborted: true, phase: "reveal" as const, phaseAt: now } : room.round;
+      const round = room.round && room.round.phase !== "reveal"
+        ? reveal(room, { ...room.round, guessedWord: room.round.phase === "guess" ? false : null }, now)
+        : room.round;
       return { ...room, status: "ended", round };
     }
 
@@ -358,7 +381,11 @@ function sanitizeSettings(s: RoomSettings, categories: Category[]): RoomSettings
 
 export function turnOf(round: OnlineRound): string | null {
   if (round.phase !== "clues") return null;
-  return round.playerIds[round.clues.length] ?? null;
+  return activeIds(round)[round.clues.length] ?? null;
+}
+
+function activeIds(round: OnlineRound): string[] {
+  return round.playerIds.filter((id) => !round.eliminatedIds?.includes(id));
 }
 
 function withRound(room: Room, round: OnlineRound): Room {
@@ -366,7 +393,7 @@ function withRound(room: Room, round: OnlineRound): Room {
 }
 
 function advanceClues(round: OnlineRound, now: number): OnlineRound {
-  if (round.clues.length >= round.playerIds.length) return { ...round, phase: "vote", phaseAt: now };
+  if (round.clues.length >= activeIds(round).length) return { ...round, phase: "vote", phaseAt: now };
   return round;
 }
 
@@ -377,7 +404,7 @@ function finishVoting(
   categories: Category[],
   random: (n: number) => number,
 ): OnlineRound {
-  const ids = round.playerIds;
+  const ids = activeIds(round);
   const votes = ids.map((id) => {
     const target = round.votes[id];
     return target === undefined ? null : ids.indexOf(target);
@@ -399,12 +426,12 @@ function finishVoting(
         guessOptions: shuffle([round.word, ...decoys], random),
       };
     }
-    return reveal(room, { ...round, eliminatedId }, now);
+    return { ...round, eliminatedId, eliminatedIds: [...(round.eliminatedIds ?? []), eliminatedId], phase: "decision", phaseAt: now };
   }
   if (leaders.length >= 2 && !round.revote) {
     return { ...round, revote: true, candidates: leaders.map((i) => ids[i]), votes: {}, phaseAt: now };
   }
-  return reveal(room, { ...round, noElimination: true }, now);
+  return { ...round, noElimination: true, phase: "decision", phaseAt: now };
 }
 
 /** Closes the round: works out the points and marks it as revealed. Mutation-free; scores are applied by the caller through `settle`. */
@@ -440,7 +467,7 @@ function removePlayer(room: Room, playerId: string, now: number, categories: Cat
     next = { ...next, hostId: oldest.id };
   }
   const round = room.round;
-  if (!round || round.phase === "reveal" || !round.playerIds.includes(playerId)) return next;
+  if (!round || round.phase === "reveal" || !activeIds(round).includes(playerId)) return next;
 
   const playerIds = round.playerIds.filter((id) => id !== playerId);
   const votes = Object.fromEntries(Object.entries(round.votes).filter(([voter, target]) => voter !== playerId && target !== playerId));
@@ -455,7 +482,7 @@ function removePlayer(room: Room, playerId: string, now: number, categories: Cat
     updated = advanceClues(updated, now);
   } else if (updated.phase === "vote") {
     if (candidates && candidates.length < 2) updated = { ...updated, candidates: null };
-    if (playerIds.every((id) => id in votes)) updated = finishVoting(next, updated, now, categories, random);
+    if (activeIds(updated).every((id) => id in votes)) updated = finishVoting(next, updated, now, categories, random);
   }
   return withRound(next, updated);
 }
@@ -474,6 +501,7 @@ function categoryInfo(id: string, categories: Category[]): CategoryInfo {
 
 export function toView(room: Room, playerId: string, now: number, categories: Category[] = CATEGORIES): RoomView {
   const round = room.round;
+  const ids = round ? activeIds(round) : [];
   const host = room.players.find((p) => p.id === room.hostId);
   const players: PlayerView[] = room.players.map((p) => ({
     id: p.id,
@@ -481,7 +509,7 @@ export function toView(room: Room, playerId: string, now: number, categories: Ca
     score: p.score,
     isHost: p.id === room.hostId,
     online: now - p.lastSeen < ROOM.presenceMs,
-    inRound: round ? round.playerIds.includes(p.id) : false,
+    inRound: ids.includes(p.id),
     hasClue: round ? round.clues.some((c) => c.playerId === p.id) : false,
     hasVoted: round ? p.id in round.votes : false,
   }));
@@ -490,11 +518,11 @@ export function toView(room: Room, playerId: string, now: number, categories: Ca
   if (round) {
     const over = round.phase === "reveal";
     const isImposter = round.imposterId === playerId;
-    const isParticipant = round.playerIds.includes(playerId);
+    const isParticipant = ids.includes(playerId);
     const category = categoryInfo(round.categoryId, categories);
     const showsCategory = room.settings.imposterHint || over;
     const tally: TallyRow[] | null =
-      round.phase === "guess" || over
+      round.phase === "guess" || round.phase === "decision" || over
         ? round.playerIds
             .map((id) => ({
               playerId: id,
@@ -508,18 +536,21 @@ export function toView(room: Room, playerId: string, now: number, categories: Ca
         : null;
     roundView = {
       number: round.number,
+      cycle: round.cycle ?? 1,
+      eliminatedIds: round.eliminatedIds ?? [],
       phase: round.phase,
       categoryIds: round.categoryIds,
       category: showsCategory ? category : null,
-      playerIds: round.playerIds,
+      playerIds: over ? round.playerIds : ids,
       turnId: turnOf(round),
       clues: round.clues,
       votesIn: Object.keys(round.votes).length,
-      votesNeeded: round.playerIds.length,
+      votesNeeded: round.phase === "decision" ? ids.length + (round.eliminatedId ? 1 : 0) : ids.length,
       revote: round.revote,
       candidates: round.candidates,
       you: {
         isParticipant,
+        isEliminated: round.eliminatedIds?.includes(playerId) ?? false,
         isImposter,
         word: isParticipant && !isImposter ? round.word : null,
         category: isParticipant && !isImposter ? category : showsCategory ? category : null,
@@ -527,8 +558,8 @@ export function toView(room: Room, playerId: string, now: number, categories: Ca
         guessOptions: isImposter && round.phase === "guess" ? round.guessOptions : null,
       },
       tally,
-      eliminatedId: round.phase === "guess" || over ? round.eliminatedId : null,
-      noElimination: over ? round.noElimination : false,
+      eliminatedId: round.phase === "guess" || round.phase === "decision" || over ? round.eliminatedId : null,
+      noElimination: round.phase === "decision" || over ? round.noElimination : false,
       aborted: round.aborted,
       guessedWord: over ? round.guessedWord : null,
       guessIndex: over ? round.guessIndex : null,

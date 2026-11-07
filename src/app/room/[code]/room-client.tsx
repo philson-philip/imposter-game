@@ -385,7 +385,7 @@ function RoundHeader({ round, status }: { round: RoundView; status: string }) {
     <div className="mt-5 flex items-end justify-between gap-3">
       <div>
         <Eyebrow>
-          <span className="block text-left">Round {round.number}</span>
+          <span className="block text-left">Round {round.number} · Clue cycle {round.cycle}</span>
         </Eyebrow>
         <h2 className="mt-0.5 text-2xl font-extrabold tracking-tight text-white">{status}</h2>
       </div>
@@ -427,7 +427,7 @@ function Round({
     </div>
   ) : (
     <div className="mt-4">
-      <Banner tone="neutral">You joined mid-round, so you&apos;re watching this one. You&apos;ll play from the next round.</Banner>
+      <Banner tone="neutral">{you.isEliminated ? "You were voted out. Watch this round; you'll play again next round." : "You joined mid-round, so you're watching this one. You'll play from the next round."}</Banner>
     </div>
   );
 
@@ -447,6 +447,31 @@ function Round({
           {card}
           <VotePhase view={view} round={round} act={act} busy={busy} isHost={isHost} nameOf={nameOf} indexOf={indexOf} />
         </div>
+      );
+    case "decision":
+      return (
+        <section className="mt-5 flex flex-1 flex-col gap-5">
+          <RoundHeader round={round} status="The imposter is still hidden" />
+          <p className="text-mist-300">
+            {round.eliminatedId ? `${nameOf(round.eliminatedId)} was innocent and will sit out until the next round.` : "Nobody was voted out."}
+          </p>
+          <p className="text-sm text-mist-400">Clue cycle {round.cycle}. The word and imposter stay the same. No points have been awarded yet.</p>
+          {round.tally && <Tally rows={round.tally} nameOf={nameOf} indexOf={indexOf} imposterId={null} />}
+          {isHost ? (
+            <div className="mt-4 flex flex-col gap-3">
+              <Button onClick={() => void act({ type: "continueRound" })} disabled={busy || round.playerIds.length < 2}>
+                Continue with more clues
+              </Button>
+              {round.playerIds.length < 2 && <p className="text-sm text-mist-400">Not enough players remain for another vote. End this round.</p>}
+              <Button variant="secondary" onClick={() => void act({ type: "endRound" })} disabled={busy}>
+                End round — imposter wins
+              </Button>
+              <Button variant="ghost" onClick={() => void act({ type: "endGame" })} disabled={busy}>
+                End game and show final standings
+              </Button>
+            </div>
+          ) : <p className="text-mist-400">Waiting for {host?.name ?? "the host"} to continue or end this round.</p>}
+        </section>
       );
     case "guess":
       return (
