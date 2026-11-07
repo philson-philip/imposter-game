@@ -1,8 +1,8 @@
-import type { Word } from "./types";
+import type { Word, WordDisplay } from "./types";
+export type { WordDisplay } from "./types";
 
 export type RoomStatus = "lobby" | "playing" | "ended";
 export type OnlinePhase = "clues" | "vote" | "decision" | "guess" | "reveal";
-export type WordDisplay = "both" | "en" | "ml";
 export type ClueMode = "typed" | "spoken";
 
 export type RoomPlayer = {

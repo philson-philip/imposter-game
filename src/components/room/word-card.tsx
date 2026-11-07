@@ -1,15 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { wordParts } from "@/lib/content";
 import type { CategoryInfo, WordDisplay } from "@/lib/room-types";
 import type { Word } from "@/lib/types";
 import { Mark } from "../mark";
-
-export function wordParts(word: Word, mode: WordDisplay): { primary: string; primaryLang: "ml" | "en"; secondary: string | null } {
-  if (mode === "en") return { primary: word.en, primaryLang: "en", secondary: null };
-  if (mode === "ml") return { primary: word.ml, primaryLang: "ml", secondary: null };
-  return { primary: word.ml, primaryLang: "ml", secondary: word.en };
-}
 
 function sizeFor(text: string): string {
   const len = Array.from(text).length;
