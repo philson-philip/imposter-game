@@ -1,0 +1,35 @@
+/** The Imposter mark: a fedora and glasses, nobody underneath. */
+export function Mark({
+  className = "",
+  tone = "violet",
+  title = "Imposter",
+}: {
+  className?: string;
+  tone?: "violet" | "rose";
+  title?: string;
+}) {
+  const id = `mark-${tone}`;
+  const [c1, c2, band] =
+    tone === "rose" ? ["#be123c", "#fb7185", "#fecdd3"] : ["#6d28d9", "#a855f7", "#ddd6fe"];
+  return (
+    <svg viewBox="0 0 100 100" className={className} role="img" aria-label={title}>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor={c1} />
+          <stop offset="1" stopColor={c2} />
+        </linearGradient>
+      </defs>
+      <rect width="100" height="100" rx="24" fill={`url(#${id})`} />
+      <path d="M31 47 L34.5 25 C42 19.5 58 19.5 65.5 25 L69 47 Z" fill="#0f0f13" />
+      <rect x="15" y="45" width="70" height="10" rx="5" fill="#0f0f13" />
+      <path d="M34 38 Q50 43 66 38 L66 43.5 Q50 48.5 34 43.5 Z" fill={band} opacity="0.95" />
+      <circle cx="35" cy="70" r="10.5" fill="#fff" />
+      <circle cx="65" cy="70" r="10.5" fill="#fff" />
+      <circle cx="35" cy="70" r="10.5" fill="none" stroke="#0f0f13" strokeWidth="5" />
+      <circle cx="65" cy="70" r="10.5" fill="none" stroke="#0f0f13" strokeWidth="5" />
+      <path d="M45.5 70 L54.5 70" stroke="#0f0f13" strokeWidth="5" strokeLinecap="round" />
+      <path d="M24.5 69 L14 65.5" stroke="#0f0f13" strokeWidth="5" strokeLinecap="round" />
+      <path d="M75.5 69 L86 65.5" stroke="#0f0f13" strokeWidth="5" strokeLinecap="round" />
+    </svg>
+  );
+}
