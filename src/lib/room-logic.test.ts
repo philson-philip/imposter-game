@@ -283,6 +283,34 @@ describe("voting and scoring", () => {
   });
 });
 
+describe("continuing a game", () => {
+  it("keeps the same room and cumulative scores for 100 rounds until the host ends it", () => {
+    const { room, ids } = makeRoom();
+    let current = room;
+    for (let number = 1; number <= 100; number++) {
+      const before = current.players.map((p) => p.score);
+      current = startRound(current, ids[0]);
+      expect(current.round!.number).toBe(number);
+      expect(current.players.map((p) => p.score)).toEqual(before);
+      expect(() => act(current, ids[1], { type: "endGame" })).toThrow(/host/i);
+      current = act(current, ids[0], { type: "startVoting" });
+      current = act(current, ids[0], { type: "endVoting" });
+      expect(current.code).toBe(room.code);
+      expect(current.status).toBe("playing");
+      expect(current.round!.phase).toBe("reveal");
+      expect(current.roundsPlayed).toBe(number);
+      expect(current.players.map((p, i) => p.score - before[i])).toEqual(
+        current.players.map((p) => p.id === current.round!.imposterId ? 3 : 0),
+      );
+    }
+    const ended = act(current, ids[0], { type: "endGame" });
+    expect(ended.status).toBe("ended");
+    expect(ended.code).toBe(room.code);
+    expect(ended.players).toEqual(current.players);
+    expect(ended.roundsPlayed).toBe(100);
+  });
+});
+
 describe("players leaving", () => {
   it("hands the host role to the longest-standing player", () => {
     const { room, ids } = makeRoom();
