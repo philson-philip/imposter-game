@@ -33,13 +33,22 @@ async function newPlayer(name) {
 }
 const shot = (page, file) => page.screenshot({ path: OUT + file, fullPage: true });
 const text = (page) => page.evaluate(() => document.body.innerText);
-const waitText = (page, re, timeout = 15000) =>
-  page.waitForFunction((src) => new RegExp(src, "i").test(document.body.innerText), { timeout }, re.source);
+const waitText = async (page, re, timeout = 15000) => {
+  try {
+    await page.waitForFunction((src) => new RegExp(src, "i").test(document.body.innerText), { timeout }, re.source);
+  } catch {
+    throw new Error(`Waiting for ${re}: ${(await text(page)).slice(0, 1000)}`);
+  }
+};
 async function clickText(page, label) {
-  const handle = await page.waitForSelector(`::-p-text(${label})`, { timeout: 10000 });
-  await page.waitForFunction((el) => !el.closest("button")?.disabled, { timeout: 15000 }, handle);
-  await handle.click();
-  await page.waitForNetworkIdle({ idleTime: 100, timeout: 15000 });
+  try {
+    const handle = await page.waitForSelector(`::-p-text(${label})`, { timeout: 10000 });
+    await page.waitForFunction((el) => !el.closest("button")?.disabled, { timeout: 15000 }, handle);
+    await handle.click();
+    await page.waitForNetworkIdle({ idleTime: 100, timeout: 15000 });
+  } catch (err) {
+    throw new Error(`Clicking ${label}: ${err.message}. ${(await text(page)).slice(0, 1000)}`);
+  }
 }
 const buttonsPressed = (page) => page.$$("button[aria-pressed]");
 
@@ -191,9 +200,12 @@ try {
     ok(!(await text(imposter2.page)).includes("The word was"), `cycle ${cycle}: wrong vote keeps the secret hidden`);
     if (cycle === 1) {
       await shot(host.page, "18b-host-decision-mobile.png");
-      await host.page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
-      await shot(host.page, "18c-host-decision-desktop.png");
-      await host.page.setViewport(phone);
+      const desktop = await host.ctx.newPage();
+      await desktop.setViewport({ width: 1280, height: 900 });
+      await desktop.goto(`${BASE}/room/${code}`, { waitUntil: "networkidle0" });
+      await waitText(desktop, /The imposter is still hidden/);
+      await shot(desktop, "18c-host-decision-desktop.png");
+      await desktop.close();
     }
     active = active.filter(p => p !== victim);
     if (cycle < 3) {
