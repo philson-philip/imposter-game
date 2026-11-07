@@ -37,7 +37,9 @@ const waitText = (page, re, timeout = 15000) =>
   page.waitForFunction((src) => new RegExp(src, "i").test(document.body.innerText), { timeout }, re.source);
 async function clickText(page, label) {
   const handle = await page.waitForSelector(`::-p-text(${label})`, { timeout: 10000 });
+  await page.waitForFunction((el) => !el.closest("button")?.disabled, { timeout: 15000 }, handle);
   await handle.click();
+  await page.waitForNetworkIdle({ idleTime: 100, timeout: 15000 });
 }
 const buttonsPressed = (page) => page.$$("button[aria-pressed]");
 
@@ -142,6 +144,7 @@ try {
     await sleep(400);
   }
   await waitText(host.page, /Imposter caught!|got away|cancelled/, 20000);
+  await waitText(imposter.page, /Which word did everyone have\?|Scores/, 20000);
   const imposterText = await text(imposter.page);
   if (imposterText.includes("Which word did everyone have?")) {
     await shot(imposter.page, "14-guess-imposter.png");
@@ -161,7 +164,7 @@ try {
   await clickText(host.page, "Say out loud");
   await waitText(host.page, /spoken clues|Say out loud/);
   await clickText(host.page, "Start round 2");
-  for (const p of all) await waitText(p.page, /Round 2/);
+  for (const p of all) await waitText(p.page, /Round 2[\s\S]*Clues, in this order/);
   ok(true, "round 2 started for everyone (spoken clues)");
   await shot(host.page, "18-round2-host.png");
   // the host advances the speaker marker; after the last speaker the round moves to voting by itself

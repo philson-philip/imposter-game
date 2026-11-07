@@ -27,11 +27,16 @@ pnpm lint
 
 Room state lives in Redis (Upstash via the Vercel Marketplace). Without `UPSTASH_REDIS_REST_URL`
 and `UPSTASH_REDIS_REST_TOKEN` (or `KV_REST_API_URL` / `KV_REST_API_TOKEN`) the server falls back
-to an in-memory store, which is fine locally but not shared between serverless instances.
+to an in-memory store in development only. Production requires Redis: server memory is not
+shared between serverless instances and can disappear at any time. Rooms expire after 12 hours
+without a persisted update; room actions and presence updates renew that lifetime.
 
 ```bash
 vercel env pull .env.local   # after the Upstash integration is connected to the project
 ```
+
+Connect Redis to the production environment and redeploy after adding its credentials.
+Changing the TTL alone cannot keep rooms alive without persistent storage.
 
 ## Word lists
 

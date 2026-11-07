@@ -53,7 +53,7 @@ class MemoryStore implements RoomStore {
   private live(code: string) {
     const entry = this.rooms.get(code);
     if (!entry) return null;
-    if (entry.expiresAt < Date.now()) {
+    if (entry.expiresAt <= Date.now()) {
       this.rooms.delete(code);
       return null;
     }
@@ -84,8 +84,8 @@ class MemoryStore implements RoomStore {
 }
 
 function redisFromEnv(): Redis | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
   return new Redis({ url, token, automaticDeserialization: false });
 }
@@ -99,7 +99,7 @@ export function getStore(): RoomStore {
       globalForStore.__imposterStore = new RedisStore(redis);
     } else {
       if (process.env.NODE_ENV === "production") {
-        console.warn("[imposter] No Redis configured; using an in-memory room store that is NOT shared between instances.");
+        throw new Error("Redis is required in production. Configure UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL and KV_REST_API_TOKEN) before creating rooms.");
       }
       globalForStore.__imposterStore = new MemoryStore();
     }
