@@ -43,3 +43,13 @@ transliterations. Edit freely.
 
 The project is a standard Next.js app; `vercel deploy --prod` from the repo root, or connect the
 Git repository to Vercel.
+
+## End-to-end checks
+
+```bash
+pnpm build && pnpm start -p 3100   # in one terminal
+BASE=http://localhost:3100 pnpm smoke   # plays two rounds through the HTTP API
+BASE=http://localhost:3100 pnpm e2e     # four headless Chrome "phones" play through the real UI
+```
+
+`pnpm e2e` drives the system Google Chrome via puppeteer-core and writes screenshots to `.e2e-shots/`.
