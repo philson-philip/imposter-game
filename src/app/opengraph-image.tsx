@@ -1,11 +1,12 @@
 import { ImageResponse } from "next/og";
-import { markDataUri } from "@/lib/mark-svg";
+import { markDataUri } from "@/lib/mark-image";
 
 export const alt = "Imposter – Malayalam party word game";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OpenGraphImage() {
+export default async function OpenGraphImage() {
+  const image = await markDataUri();
   return new ImageResponse(
     (
       <div
@@ -22,7 +23,7 @@ export default function OpenGraphImage() {
         }}
       >
         { }
-        <img src={markDataUri()} width={300} height={300} alt="" />
+        <img src={image} width={300} height={300} style={{ borderRadius: 72 }} alt="" />
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 120, fontWeight: 800, letterSpacing: -4, lineHeight: 1 }}>Imposter</div>
           <div style={{ fontSize: 44, color: "#a78bfa", marginTop: 10, fontWeight: 700 }}>Malayalam party word game</div>

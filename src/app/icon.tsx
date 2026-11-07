@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { markDataUri } from "@/lib/mark-svg";
+import { markDataUri } from "@/lib/mark-image";
 
 export function generateImageMetadata() {
   return [
@@ -10,11 +10,12 @@ export function generateImageMetadata() {
 
 export default async function Icon({ id }: { id: Promise<string> }) {
   const size = Number(await id) === 512 ? 512 : 192;
+  const image = await markDataUri();
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", background: "#0f0f13" }}>
         { }
-        <img src={markDataUri({ rounded: false })} width={size} height={size} alt="" />
+        <img src={image} width={size} height={size} alt="" />
       </div>
     ),
     { width: size, height: size },
