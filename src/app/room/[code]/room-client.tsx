@@ -493,7 +493,9 @@ function ClueList({
                 {id === view.youId && <span className="ml-1 text-xs font-medium text-mist-500">(you)</span>}
               </p>
               {clue ? (
-                <p className={`truncate ${clue.skipped ? "text-sm italic text-mist-500" : "text-base text-violet-200"}`}>{clue.skipped ? "skipped" : clue.text}</p>
+                <p className={`truncate ${clue.skipped ? "text-sm italic text-mist-500" : "text-base text-violet-200"}`}>
+                  {clue.skipped ? (typed ? "skipped" : "spoke") : clue.text}
+                </p>
               ) : isTurn ? (
                 <p className="text-sm text-mist-400">{typed ? "typing a clue…" : "their turn to speak"}</p>
               ) : null}
@@ -577,6 +579,11 @@ function CluesPhase({
             {typed && round.turnId && round.turnId !== view.youId && (
               <Button variant="ghost" size="md" onClick={() => void act({ type: "skipTurn" })} disabled={busy}>
                 Skip {nameOf(round.turnId)}
+              </Button>
+            )}
+            {!typed && round.turnId && (
+              <Button variant="secondary" size="md" onClick={() => void act({ type: "skipTurn" })} disabled={busy}>
+                {nameOf(round.turnId)} has spoken, next
               </Button>
             )}
             <Button variant={typed ? "secondary" : "primary"} onClick={() => void act({ type: "startVoting" })} disabled={busy}>

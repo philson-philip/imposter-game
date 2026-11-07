@@ -47,6 +47,17 @@ describe("pickWord", () => {
     for (let i = 0; i < 20; i++) expect(pickWord(cats, ["b"], []).categoryId).toBe("b");
   });
 
+  it("treats the same word listed in two categories as one word", () => {
+    const shared: Category[] = [
+      { id: "x", en: "X", ml: "എക്സ്", emoji: "x", words: [{ ml: "ഷവർമ", en: "Shawarma" }] },
+      { id: "y", en: "Y", ml: "വൈ", emoji: "y", words: [{ ml: "ഷവർമ", en: "Shawarma" }, { ml: "മന്തി", en: "Mandi" }] },
+    ];
+    for (let i = 0; i < 20; i++) {
+      expect(pickWord(shared, [], ["x:ഷവർമ"]).word.ml).toBe("മന്തി");
+    }
+    expect(pickWord(shared, [], ["x:ഷവർമ", "y:മന്തി"]).usedReset).toBe(true);
+  });
+
   it("falls back to every category when the selection is unknown", () => {
     expect(() => pickWord(cats, ["zzz"], [])).not.toThrow();
   });

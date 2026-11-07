@@ -21,7 +21,7 @@ export default function OpenGraphImage() {
           fontFamily: "sans-serif",
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+        { }
         <img src={markDataUri()} width={300} height={300} alt="" />
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 120, fontWeight: 800, letterSpacing: -4, lineHeight: 1 }}>Imposter</div>

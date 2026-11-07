@@ -158,12 +158,20 @@ try {
   console.log("7. host starts round 2 in Movies, then ends the game");
   await clickText(host.page, "Next round:");
   await clickText(host.page, "Movies");
+  await clickText(host.page, "Say out loud");
+  await waitText(host.page, /spoken clues|Say out loud/);
   await clickText(host.page, "Start round 2");
   for (const p of all) await waitText(p.page, /Round 2/);
-  ok(true, "round 2 started for everyone");
+  ok(true, "round 2 started for everyone (spoken clues)");
   await shot(host.page, "18-round2-host.png");
-  await clickText(host.page, "Start voting now");
+  // the host advances the speaker marker; after the last speaker the round moves to voting by itself
+  for (let i = 0; i < 4; i++) {
+    await clickText(host.page, "has spoken, next");
+    await sleep(400);
+  }
+  await waitText(host.page, /Who is the Imposter\?/);
   await waitText(players[0].page, /Who is the Imposter\?/);
+  ok(true, "spoken round reached the vote through the next-speaker control");
   await clickText(host.page, "End voting now");
   await waitText(host.page, /Scores/, 20000);
   await clickText(host.page, "End game and show final standings");

@@ -33,6 +33,15 @@ export function wordKey(categoryId: string, word: Word): string {
   return `${categoryId}:${word.ml}`;
 }
 
+/** Spelling-level identity of a word, so the same word listed in two categories counts once. */
+export function wordIdentity(ml: string): string {
+  return ml.replace(/\s+/g, "");
+}
+
+function identityOfKey(key: string): string {
+  return wordIdentity(key.slice(key.indexOf(":") + 1));
+}
+
 /** Categories in play for the given selection; an empty selection means all. */
 export function selectCategories(all: Category[], ids: string[]): Category[] {
   const chosen = ids.length ? all.filter((c) => ids.includes(c.id)) : all;
@@ -54,8 +63,8 @@ export function pickWord(all: Category[], ids: string[], used: string[]): WordPi
     c.words.map((word) => ({ word, categoryId: c.id })),
   );
   if (pool.length === 0) throw new Error("No words available");
-  const usedSet = new Set(used);
-  let fresh = pool.filter((p) => !usedSet.has(wordKey(p.categoryId, p.word)));
+  const usedIdentities = new Set(used.map(identityOfKey));
+  let fresh = pool.filter((p) => !usedIdentities.has(wordIdentity(p.word.ml)));
   let usedReset = false;
   if (fresh.length === 0) {
     fresh = pool;
