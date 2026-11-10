@@ -1,6 +1,7 @@
 "use client";
 
-import type { Category, Word } from "@/lib/types";
+import type { Category, Word, WordDisplay } from "@/lib/types";
+import { categoryName, wordParts } from "@/lib/content";
 import { Mark } from "./mark";
 
 function wordSize(ml: string): string {
@@ -17,7 +18,7 @@ export function SecretCard({
   isImposter,
   word,
   category,
-  showEnglish,
+  mode,
   showHint,
 }: {
   player: string;
@@ -26,9 +27,10 @@ export function SecretCard({
   isImposter: boolean;
   word: Word;
   category: Category;
-  showEnglish: boolean;
+  mode: WordDisplay;
   showHint: boolean;
 }) {
+  const { primary, primaryLang, secondary } = wordParts(word, mode, category.id);
   return (
     <div className="perspective w-full">
       <button
@@ -62,15 +64,15 @@ export function SecretCard({
                 <div className="flex flex-1 flex-col items-center justify-center text-center">
                   <Mark tone="rose" className="h-20 w-20" title="" />
                   <p className="mt-5 text-3xl font-extrabold leading-tight text-white">You&apos;re the Imposter</p>
-                  <p lang="ml" className="mt-1 text-lg font-semibold text-rose-300">
+                  {mode !== "en" && <p lang="ml" className="mt-1 text-lg font-semibold text-rose-300">
                     നിങ്ങളാണ് ഇംപോസ്റ്റർ
-                  </p>
+                  </p>}
                   <p className="mt-4 text-base leading-snug text-mist-300">
                     {showHint ? (
                       <>
                         You don&apos;t know the word, but it&apos;s about{" "}
                         <span className="font-semibold text-white">
-                          {category.emoji} {category.en}
+                          {category.emoji} {categoryName(category, mode)}
                         </span>
                         .
                       </>
@@ -84,17 +86,17 @@ export function SecretCard({
             ) : (
               <>
                 <span className="self-start rounded-full bg-violet-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-violet-300">
-                  {category.emoji} {category.en}
+                  {category.emoji} {categoryName(category, mode)}
                 </span>
                 <div className="flex flex-1 flex-col items-center justify-center text-center">
                   <p className="text-sm text-mist-400">Your secret word</p>
                   <p
-                    lang="ml"
-                    className={`mt-3 w-full font-extrabold leading-[1.3] text-white [overflow-wrap:anywhere] ${wordSize(word.ml)}`}
+                    lang={primaryLang}
+                    className={`mt-3 w-full font-extrabold leading-[1.3] text-white [overflow-wrap:anywhere] ${wordSize(primary)}`}
                   >
-                    {word.ml}
+                    {primary}
                   </p>
-                  {showEnglish && <p className="mt-2 text-xl font-medium text-violet-300">{word.en}</p>}
+                  {secondary && <p className="mt-2 text-xl font-medium text-violet-300">{secondary}</p>}
                 </div>
                 <p className="text-center text-sm text-mist-400">Give a clue. Never say the word.</p>
               </>

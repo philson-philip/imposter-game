@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
-    "e2e": "node scripts/e2e.mjs"
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:language-voting": "node scripts/language-voting-e2e.mjs"
   },
   "dependencies": {
     "@upstash/redis": "^1.41.0",

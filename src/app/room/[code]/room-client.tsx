@@ -7,6 +7,8 @@ import { Mark } from "@/components/mark";
 import { RoundSetup, categoryLabel } from "@/components/room/round-setup";
 import { Scoreboard } from "@/components/room/scoreboard";
 import { WordText, YourCard } from "@/components/room/word-card";
+import { VotingProgress } from "@/components/voting-progress";
+import { categoryName, uiLanguage } from "@/lib/content";
 import { Screen, Spotlight } from "@/components/shell";
 import { Button, ButtonLink, Eyebrow } from "@/components/ui";
 import { useHydrated, useWakeLock } from "@/lib/hooks";
@@ -363,7 +365,7 @@ function WaitingForHost({ view, host, act, busy }: { view: RoomView; host: Playe
     <section className="mt-8 rounded-3xl border border-ink-700 bg-ink-800 p-5 text-center">
       <p className="text-lg font-semibold text-white">Waiting for {host?.name ?? "the host"} to start…</p>
       <p className="mt-2 text-sm text-mist-400">
-        Category: <span className="text-mist-200">{categoryLabel(view.settings.categoryIds)}</span>
+        Category: <span className="text-mist-200">{categoryLabel(view.settings.categoryIds, view.settings.wordDisplay)}</span>
         {" · "}
         {view.settings.imposterHint ? "Imposter sees the category" : "Imposter sees nothing"}
         {" · "}
@@ -380,7 +382,7 @@ function WaitingForHost({ view, host, act, busy }: { view: RoomView; host: Playe
 
 /* ---------- rounds ---------- */
 
-function RoundHeader({ round, status }: { round: RoundView; status: string }) {
+function RoundHeader({ round, status, mode }: { round: RoundView; status: string; mode: RoomView["settings"]["wordDisplay"] }) {
   return (
     <div className="mt-5 flex items-end justify-between gap-3">
       <div>
@@ -391,7 +393,7 @@ function RoundHeader({ round, status }: { round: RoundView; status: string }) {
       </div>
       {round.category ? (
         <span className="rounded-full bg-ink-800 px-3 py-1 text-xs font-semibold text-mist-300">
-          {round.category.emoji} {round.category.en}
+          {round.category.emoji} {categoryName(round.category, mode)}
         </span>
       ) : (
         <span className="rounded-full bg-ink-800 px-3 py-1 text-xs font-semibold text-mist-500">🤫 category hidden</span>
@@ -435,7 +437,7 @@ function Round({
     case "clues":
       return (
         <div className="flex flex-1 flex-col">
-          <RoundHeader round={round} status="Give your clues" />
+          <RoundHeader round={round} mode={mode} status="Give your clues" />
           {card}
           <CluesPhase view={view} round={round} act={act} busy={busy} isHost={isHost} nameOf={nameOf} indexOf={indexOf} />
         </div>
@@ -443,7 +445,7 @@ function Round({
     case "vote":
       return (
         <div className="flex flex-1 flex-col">
-          <RoundHeader round={round} status="Who is the Imposter?" />
+          <RoundHeader round={round} mode={mode} status="Who is the Imposter?" />
           {card}
           <VotePhase view={view} round={round} act={act} busy={busy} isHost={isHost} nameOf={nameOf} indexOf={indexOf} />
         </div>
@@ -451,7 +453,7 @@ function Round({
     case "decision":
       return (
         <section className="mt-5 flex flex-1 flex-col gap-5">
-          <RoundHeader round={round} status="The imposter is still hidden" />
+          <RoundHeader round={round} mode={mode} status="The imposter is still hidden" />
           <p className="text-mist-300">
             {round.eliminatedId ? `${nameOf(round.eliminatedId)} was innocent and will sit out until the next round.` : "Nobody was voted out."}
           </p>
@@ -476,7 +478,7 @@ function Round({
     case "guess":
       return (
         <div className="flex flex-1 flex-col">
-          <RoundHeader round={round} status="Imposter caught!" />
+          <RoundHeader round={round} mode={mode} status="Imposter caught!" />
           <GuessPhase view={view} round={round} act={act} busy={busy} isHost={isHost} nameOf={nameOf} indexOf={indexOf} />
         </div>
       );
@@ -640,7 +642,6 @@ function VotePhase({
 }) {
   const you = round.you;
   const options = (round.candidates ?? round.playerIds).filter((id) => id !== view.youId);
-  const remaining = round.votesNeeded - round.votesIn;
 
   return (
     <section className="mt-6 flex flex-1 flex-col">
@@ -679,10 +680,7 @@ function VotePhase({
         <Banner tone="neutral">You&apos;re watching this vote.</Banner>
       )}
 
-      <p className="mt-4 text-center text-sm text-mist-400">
-        {round.votesIn}/{round.votesNeeded} votes in
-        {remaining > 0 && you.votedFor ? ` · waiting for ${remaining} more` : ""}
-      </p>
+      <VotingProgress players={view.players} eligibleIds={round.playerIds} language={uiLanguage(view.settings.wordDisplay)} className="mt-4" />
 
       {view.settings.clueMode === "typed" && round.clues.length > 0 && (
         <details className="mt-4">
@@ -836,10 +834,10 @@ function RevealPhase({
       {round.word && (
         <div className="mt-5 rounded-3xl border border-ink-700 bg-ink-800 p-4 animate-rise [animation-delay:160ms]">
           <Eyebrow>The word was</Eyebrow>
-          <WordText word={round.word} mode="both" />
+          <WordText word={round.word} mode={view.settings.wordDisplay} categoryId={round.category?.id} />
           {round.category && (
             <p className="text-center text-sm text-mist-400">
-              {round.category.emoji} {round.category.en}
+              {round.category.emoji} {categoryName(round.category, view.settings.wordDisplay)}
             </p>
           )}
         </div>
@@ -861,7 +859,7 @@ function RevealPhase({
         <div className="mt-8 space-y-4">
           <details className="rounded-2xl border border-ink-700 bg-ink-800 p-4">
             <summary className="cursor-pointer text-sm font-semibold text-mist-200">
-              Next round: {categoryLabel(view.settings.categoryIds)} <span className="text-mist-500">· change</span>
+              Next round: {categoryLabel(view.settings.categoryIds, view.settings.wordDisplay)} <span className="text-mist-500">· change</span>
             </summary>
             <div className="mt-4">
               <RoundSetup settings={view.settings} onChange={(patch) => void act({ type: "setSettings", settings: patch })} />
@@ -877,7 +875,7 @@ function RevealPhase({
       ) : (
         <p className="mt-8 text-center text-mist-400">
           Waiting for {host?.name ?? "the host"} to start round {round.number + 1}… Next category:{" "}
-          <span className="text-mist-200">{categoryLabel(view.settings.categoryIds)}</span>
+          <span className="text-mist-200">{categoryLabel(view.settings.categoryIds, view.settings.wordDisplay)}</span>
         </p>
       )}
     </section>

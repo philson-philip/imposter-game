@@ -156,6 +156,13 @@ describe("starting a round", () => {
     const r = startRound(room, ids[0]);
     expect(() => startRound(r, ids[0])).toThrow(/already running/);
   });
+
+  it("rejects empty topic pools without changing a saved game", () => {
+    const { room, ids } = makeRoom();
+    const before = structuredClone(room);
+    expect(() => applyAction(room, ids[0], { type: "startRound" }, T0, { categories: [{ id: "empty", en: "Empty", ml: "ശൂന്യം", emoji: "", words: [] }] })).toThrow(/No words available/);
+    expect(room).toEqual(before);
+  });
 });
 
 describe("clues", () => {
@@ -440,6 +447,26 @@ describe("players leaving", () => {
 });
 
 describe("views", () => {
+  it("counts only valid votes by eligible players without revealing their choices", () => {
+    const { room, ids } = makeRoom();
+    const voting = toVote(room, ids[0]);
+    const stored = { ...voting, round: { ...voting.round!, votes: { [ids[0]]: ids[1], [ids[1]]: "left", [ids[2]]: ids[2], outsider: ids[0] } } };
+    const view = toView(stored, ids[3], T0);
+    expect(view.round!.votesIn).toBe(1);
+    expect(view.players.filter((p) => p.hasVoted).map((p) => p.id)).toEqual([ids[0]]);
+    expect(view.round!.you.votedFor).toBeNull();
+    expect(view.round!.tally).toBeNull();
+  });
+
+  it("updates translations in old saved rooms without rewriting the hidden round", () => {
+    const { room, ids } = makeRoom();
+    const started = startRound(room, ids[0]);
+    const stored = { ...started, round: { ...started.round!, word: { ml: "കപ്പ", en: "Kappa" } } };
+    const crew = ids.find((id) => id !== stored.round.imposterId)!;
+    expect(toView(stored, crew, T0).round!.you.word!.en).toBe("Tapioca");
+    expect(stored.round.word.en).toBe("Kappa");
+  });
+
   it("hides secrets from the wrong eyes", () => {
     const { room, ids } = makeRoom();
     const r = startRound(room, ids[0], ["food"]);

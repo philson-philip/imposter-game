@@ -11,7 +11,6 @@ export type VoteProgress = {
   pending: { id: string; name: string }[];
 };
 
-/** Eligibility comes from the round, including its existing presence rules. */
 export function votingProgress(players: readonly VotingPlayer[], eligibleIds: readonly string[]): VoteProgress {
   const playersById = new Map(players.map((player) => [player.id, player]));
   const eligible = [...new Set(eligibleIds)].flatMap((id) => {

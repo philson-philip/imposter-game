@@ -1,5 +1,6 @@
 import { CATEGORIES, categoryOf } from "@/data/words";
-import { SCORING, pickWord, randomInt, selectCategories, tallyVotes, wordKey } from "./game";
+import { resolveWord } from "./content";
+import { SCORING, countWords, pickWord, randomInt, selectCategories, tallyVotes, wordKey } from "./game";
 import type {
   CategoryInfo,
   OnlineRound,
@@ -202,6 +203,7 @@ function reduce(
         { ...room.settings, categoryIds: action.categoryIds ?? room.settings.categoryIds },
         categories,
       );
+      if (countWords(categories, settings.categoryIds) === 0) throw new RoomError(409, "No words available in these categories. Choose another category.");
       const { word, categoryId, usedReset } = pickWord(categories, settings.categoryIds, room.usedWords);
       const inPlay = new Set(selectCategories(categories, settings.categoryIds).map((c) => c.id));
       const base = usedReset ? room.usedWords.filter((k) => !inPlay.has(k.slice(0, k.indexOf(":")))) : room.usedWords;
@@ -502,6 +504,12 @@ function categoryInfo(id: string, categories: Category[]): CategoryInfo {
 export function toView(room: Room, playerId: string, now: number, categories: Category[] = CATEGORIES): RoomView {
   const round = room.round;
   const ids = round ? activeIds(round) : [];
+  const eligible = new Set(ids);
+  const votedIds = new Set(round ? Object.keys(round.votes).filter((id) => {
+    if (round.phase !== "vote") return true;
+    const target = round.votes[id];
+    return eligible.has(id) && eligible.has(target) && target !== id && (!round.candidates || round.candidates.includes(target));
+  }) : []);
   const host = room.players.find((p) => p.id === room.hostId);
   const players: PlayerView[] = room.players.map((p) => ({
     id: p.id,
@@ -511,7 +519,7 @@ export function toView(room: Room, playerId: string, now: number, categories: Ca
     online: now - p.lastSeen < ROOM.presenceMs,
     inRound: ids.includes(p.id),
     hasClue: round ? round.clues.some((c) => c.playerId === p.id) : false,
-    hasVoted: round ? p.id in round.votes : false,
+    hasVoted: votedIds.has(p.id),
   }));
 
   let roundView: RoomView["round"] = null;
@@ -544,7 +552,7 @@ export function toView(room: Room, playerId: string, now: number, categories: Ca
       playerIds: over ? round.playerIds : ids,
       turnId: turnOf(round),
       clues: round.clues,
-      votesIn: Object.keys(round.votes).length,
+      votesIn: votedIds.size,
       votesNeeded: round.phase === "decision" ? ids.length + (round.eliminatedId ? 1 : 0) : ids.length,
       revote: round.revote,
       candidates: round.candidates,
@@ -552,10 +560,10 @@ export function toView(room: Room, playerId: string, now: number, categories: Ca
         isParticipant,
         isEliminated: round.eliminatedIds?.includes(playerId) ?? false,
         isImposter,
-        word: isParticipant && !isImposter ? round.word : null,
+        word: isParticipant && !isImposter ? resolveWord(round.word, round.categoryId) : null,
         category: isParticipant && !isImposter ? category : showsCategory ? category : null,
-        votedFor: round.votes[playerId] ?? null,
-        guessOptions: isImposter && round.phase === "guess" ? round.guessOptions : null,
+        votedFor: votedIds.has(playerId) ? round.votes[playerId] ?? null : null,
+        guessOptions: isImposter && round.phase === "guess" ? round.guessOptions?.map((word) => resolveWord(word, round.categoryId)) ?? null : null,
       },
       tally,
       eliminatedId: round.phase === "guess" || round.phase === "decision" || over ? round.eliminatedId : null,
@@ -564,7 +572,7 @@ export function toView(room: Room, playerId: string, now: number, categories: Ca
       guessedWord: over ? round.guessedWord : null,
       guessIndex: over ? round.guessIndex : null,
       imposterId: over ? round.imposterId : null,
-      word: over ? round.word : null,
+      word: over ? resolveWord(round.word, round.categoryId) : null,
       deltas: over ? round.deltas : {},
     };
   }

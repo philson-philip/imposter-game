@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { wordParts } from "@/lib/content";
+import { categoryName, wordParts } from "@/lib/content";
 import type { CategoryInfo, WordDisplay } from "@/lib/room-types";
 import type { Word } from "@/lib/types";
 import { Mark } from "../mark";
@@ -36,7 +36,7 @@ export function YourCard({
     <section aria-label="Your card" className={`rounded-3xl border p-4 ${frame}`}>
       <div className="flex items-center justify-between gap-3">
         <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${pill}`}>
-          {isImposter ? "Imposter" : category ? `${category.emoji} ${category.en}` : "Your word"}
+          {isImposter ? "Imposter" : category ? `${category.emoji} ${categoryName(category, mode)}` : "Your word"}
         </span>
         <button
           type="button"
@@ -54,15 +54,15 @@ export function YourCard({
           <Mark tone="rose" className="h-16 w-16 shrink-0" title="" />
           <div>
             <p className="text-2xl font-extrabold leading-tight text-white">You&apos;re the Imposter</p>
-            <p lang="ml" className="text-sm font-semibold text-rose-300">
+            {mode !== "en" && <p lang="ml" className="text-sm font-semibold text-rose-300">
               നിങ്ങളാണ് ഇംപോസ്റ്റർ
-            </p>
+            </p>}
             <p className="mt-2 text-sm leading-snug text-mist-300">
               {category ? (
                 <>
                   You don&apos;t know the word, but it&apos;s about{" "}
                   <span className="font-semibold text-white">
-                    {category.emoji} {category.en}
+                    {category.emoji} {categoryName(category, mode)}
                   </span>
                   . Bluff.
                 </>
@@ -73,7 +73,7 @@ export function YourCard({
           </div>
         </div>
       ) : word ? (
-        <WordText word={word} mode={mode} />
+        <WordText word={word} mode={mode} categoryId={category?.id} />
       ) : (
         <p className="py-8 text-center text-mist-400">You&apos;ll get a word from the next round.</p>
       )}
@@ -81,8 +81,8 @@ export function YourCard({
   );
 }
 
-export function WordText({ word, mode, compact = false }: { word: Word; mode: WordDisplay; compact?: boolean }) {
-  const { primary, primaryLang, secondary } = wordParts(word, mode);
+export function WordText({ word, mode, compact = false, categoryId }: { word: Word; mode: WordDisplay; compact?: boolean; categoryId?: string }) {
+  const { primary, primaryLang, secondary } = wordParts(word, mode, categoryId);
   return (
     <div className={`text-center ${compact ? "py-2" : "py-6"}`}>
       <p lang={primaryLang} className={`font-extrabold leading-[1.3] text-white [overflow-wrap:anywhere] ${compact ? "text-2xl" : sizeFor(primary)}`}>

@@ -56,6 +56,7 @@ Git repository to Vercel.
 pnpm build && pnpm start -p 3100   # in one terminal
 BASE=http://localhost:3100 pnpm smoke   # plays two rounds through the HTTP API
 BASE=http://localhost:3100 pnpm e2e     # four headless Chrome "phones" play through the real UI
+BASE=http://localhost:3100 pnpm e2e:language-voting  # language switching, saved games, and pending voters
 ```
 
 `pnpm e2e` drives the system Google Chrome via puppeteer-core and writes screenshots to `.e2e-shots/`.
