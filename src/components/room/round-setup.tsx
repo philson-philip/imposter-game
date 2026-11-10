@@ -2,7 +2,9 @@
 
 import { CATEGORIES } from "@/data/words";
 import { countWords } from "@/lib/game";
+import { categoryName, CONTENT_LABELS, uiLanguage } from "@/lib/content";
 import type { RoomSettings } from "@/lib/room-types";
+import type { WordDisplay } from "@/lib/types";
 import { Chip, Segmented, Toggle } from "../ui";
 
 /** Host-only controls for the next round: categories and options. Writes go straight to the room. */
@@ -16,6 +18,7 @@ export function RoundSetup({
   disabled?: boolean;
 }) {
   const selected = settings.categoryIds;
+  const labels = CONTENT_LABELS[uiLanguage(settings.wordDisplay)];
   const toggle = (id: string) => {
     const ids = selected.includes(id) ? selected.filter((c) => c !== id) : [...selected, id];
     onChange({ categoryIds: ids.length === CATEGORIES.length ? [] : ids });
@@ -24,16 +27,16 @@ export function RoundSetup({
     <div className={`space-y-6 ${disabled ? "pointer-events-none opacity-60" : ""}`}>
       <div className="space-y-3">
         <div className="flex items-baseline justify-between">
-          <h3 className="text-sm font-semibold uppercase tracking-widest text-mist-500">Category for this round</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-widest text-mist-500">{labels.category}</h3>
           <span className="text-sm text-mist-400">{countWords(CATEGORIES, selected)} words</span>
         </div>
         <div className="flex flex-wrap gap-2">
           <Chip selected={selected.length === 0} onClick={() => onChange({ categoryIds: [] })}>
-            ✨ Everything
+            ✨ {labels.everything}
           </Chip>
           {CATEGORIES.map((c) => (
             <Chip key={c.id} selected={selected.includes(c.id)} onClick={() => toggle(c.id)}>
-              <span aria-hidden>{c.emoji}</span> {c.en}
+              <span aria-hidden>{c.emoji}</span> {categoryName(c, settings.wordDisplay)}
             </Chip>
           ))}
         </div>
@@ -47,7 +50,7 @@ export function RoundSetup({
           hint="Easier for the Imposter. Everyone sees the category."
         />
         <div className="space-y-2 pt-1">
-          <p className="text-sm font-semibold text-mist-300">Show words as</p>
+          <p className="text-sm font-semibold text-mist-300">{labels.wordDisplay}</p>
           <Segmented
             label="Word display"
             value={settings.wordDisplay}
@@ -76,11 +79,12 @@ export function RoundSetup({
   );
 }
 
-export function categoryLabel(ids: string[]): string {
-  if (ids.length === 0) return "Everything";
+export function categoryLabel(ids: string[], mode: WordDisplay = "both"): string {
+  const fallback = CONTENT_LABELS[uiLanguage(mode)].everything;
+  if (ids.length === 0) return fallback;
   return ids
     .map((id) => CATEGORIES.find((c) => c.id === id))
     .filter((c): c is (typeof CATEGORIES)[number] => Boolean(c))
-    .map((c) => `${c.emoji} ${c.en}`)
-    .join(", ");
+    .map((c) => `${c.emoji} ${categoryName(c, mode)}`)
+    .join(", ") || fallback;
 }

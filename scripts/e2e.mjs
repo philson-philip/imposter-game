@@ -33,11 +33,22 @@ async function newPlayer(name) {
 }
 const shot = (page, file) => page.screenshot({ path: OUT + file, fullPage: true });
 const text = (page) => page.evaluate(() => document.body.innerText);
-const waitText = (page, re, timeout = 15000) =>
-  page.waitForFunction((src) => new RegExp(src, "i").test(document.body.innerText), { timeout }, re.source);
+const waitText = async (page, re, timeout = 15000) => {
+  try {
+    await page.waitForFunction((src) => new RegExp(src, "i").test(document.body.innerText), { timeout }, re.source);
+  } catch {
+    throw new Error(`Waiting for ${re}: ${(await text(page)).slice(0, 1000)}`);
+  }
+};
 async function clickText(page, label) {
-  const handle = await page.waitForSelector(`::-p-text(${label})`, { timeout: 10000 });
-  await handle.click();
+  try {
+    const handle = await page.waitForSelector(`::-p-text(${label})`, { timeout: 10000 });
+    await page.waitForFunction((el) => !el.closest("button")?.disabled, { timeout: 15000 }, handle);
+    await handle.click();
+    await page.waitForNetworkIdle({ idleTime: 100, timeout: 15000 });
+  } catch (err) {
+    throw new Error(`Clicking ${label}: ${err.message}. ${(await text(page)).slice(0, 1000)}`);
+  }
 }
 const buttonsPressed = (page) => page.$$("button[aria-pressed]");
 
@@ -142,6 +153,7 @@ try {
     await sleep(400);
   }
   await waitText(host.page, /Imposter caught!|got away|cancelled/, 20000);
+  await waitText(imposter.page, /Which word did everyone have\?|Scores/, 20000);
   const imposterText = await text(imposter.page);
   if (imposterText.includes("Which word did everyone have?")) {
     await shot(imposter.page, "14-guess-imposter.png");
@@ -161,7 +173,7 @@ try {
   await clickText(host.page, "Say out loud");
   await waitText(host.page, /spoken clues|Say out loud/);
   await clickText(host.page, "Start round 2");
-  for (const p of all) await waitText(p.page, /Round 2/);
+  for (const p of all) await waitText(p.page, /Round 2[\s\S]*Clues, in this order/);
   ok(true, "round 2 started for everyone (spoken clues)");
   await shot(host.page, "18-round2-host.png");
   // the host advances the speaker marker; after the last speaker the round moves to voting by itself
@@ -172,8 +184,42 @@ try {
   await waitText(host.page, /Who is the Imposter\?/);
   await waitText(players[0].page, /Who is the Imposter\?/);
   ok(true, "spoken round reached the vote through the next-speaker control");
-  await clickText(host.page, "End voting now");
+  const imposter2 = (await Promise.all(all.map(async p => ({ p, imposter: (await text(p.page)).includes("You're the Imposter") })))).find(p => p.imposter).p;
+  let active = [...all];
+  for (let cycle = 1; cycle <= 3; cycle++) {
+    const victim = active.find(p => p !== imposter2 && p !== host) ?? active.find(p => p !== imposter2);
+    const victimName = victim === host ? "Philson" : victim.name;
+    for (const p of active.filter(p => p !== victim)) {
+      const options = await buttonsPressed(p.page);
+      const labels = await Promise.all(options.map(b => b.evaluate(el => el.innerText)));
+      await options[labels.findIndex(label => label.includes(victimName))].click();
+      await p.page.waitForNetworkIdle({ idleTime: 100, timeout: 15000 });
+    }
+    await clickText(host.page, "End voting now");
+    for (const p of all) await waitText(p.page, /The imposter is still hidden/);
+    ok(!(await text(imposter2.page)).includes("The word was"), `cycle ${cycle}: wrong vote keeps the secret hidden`);
+    if (cycle === 1) {
+      await shot(host.page, "18b-host-decision-mobile.png");
+      const desktop = await host.ctx.newPage();
+      await desktop.setViewport({ width: 1280, height: 900 });
+      await desktop.goto(`${BASE}/room/${code}`, { waitUntil: "networkidle0" });
+      await waitText(desktop, /The imposter is still hidden/);
+      await shot(desktop, "18c-host-decision-desktop.png");
+      await desktop.close();
+    }
+    active = active.filter(p => p !== victim);
+    if (cycle < 3) {
+      await clickText(host.page, "Continue with more clues");
+      for (const p of all) await waitText(p.page, /Give your clues/);
+      await waitText(victim.page, /You were voted out/);
+      ok((await buttonsPressed(victim.page)).length === 0, "voted-out player sits out");
+      for (let i = 0; i < active.length; i++) await clickText(host.page, "has spoken, next");
+      for (const p of active) await waitText(p.page, /Who is the Imposter\?/);
+    }
+  }
+  await clickText(host.page, "End round — imposter wins");
   await waitText(host.page, /Scores/, 20000);
+  ok(true, "host ended the round after three cycles and revealed the imposter win");
   await clickText(host.page, "End game and show final standings");
   for (const p of all) await waitText(p.page, /Game over/);
   ok(true, "final standings shown to everyone");

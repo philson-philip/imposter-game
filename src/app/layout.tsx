@@ -50,7 +50,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${anek.variable} ${geistMono.variable} h-full antialiased`}>
+    // Browser extensions (e.g. Scribe's data-scribe-recorder-ready) stamp attributes onto <html>
+    // before hydration. This only silences attribute diffs on this element, not its children.
+    <html
+      lang="en"
+      className={`${anek.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
       <body className="flex min-h-dvh flex-col font-sans">{children}</body>
     </html>
   );

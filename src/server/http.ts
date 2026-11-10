@@ -81,6 +81,8 @@ export function parseAction(body: Record<string, unknown>): RoomAction {
     case "startVoting":
     case "endVoting":
     case "skipGuess":
+    case "continueRound":
+    case "endRound":
     case "endGame":
     case "leave":
     case "claimHost":

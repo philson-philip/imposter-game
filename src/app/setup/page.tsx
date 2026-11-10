@@ -5,10 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import { Screen } from "@/components/shell";
 import { Button, ButtonLink, Chip, Field, Segmented, Toggle } from "@/components/ui";
 import { CATEGORIES } from "@/data/words";
+import { categoryName, CONTENT_LABELS, settingsDisplay, uiLanguage } from "@/lib/content";
 import { MAX_PLAYERS, MIN_PLAYERS, countWords, createRound, newSession, normalizePlayers, playersError } from "@/lib/game";
 import { useHydrated } from "@/lib/hooks";
 import { loadSettings, saveRound, saveSession, saveSettings } from "@/lib/storage";
-import type { Settings, TimerSeconds, VoteMode } from "@/lib/types";
+import type { Settings, TimerSeconds, VoteMode, WordDisplay } from "@/lib/types";
 
 export default function SetupPage() {
   const hydrated = useHydrated();
@@ -23,7 +24,13 @@ function SetupForm() {
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
   const focusIndex = useRef<number | null>(null);
 
-  const update = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
+  const update = (patch: Partial<Settings>) => {
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    if (patch.wordDisplay !== undefined) saveSettings(next);
+  };
+  const mode = settingsDisplay(settings);
+  const labels = CONTENT_LABELS[uiLanguage(mode)];
 
   useEffect(() => {
     if (focusIndex.current !== null) {
@@ -57,6 +64,10 @@ function SetupForm() {
     const problem = playersError(names);
     if (problem) {
       setError(problem);
+      return;
+    }
+    if (wordsInPlay === 0) {
+      setError(labels.noWords);
       return;
     }
     setStarting(true);
@@ -135,14 +146,11 @@ function SetupForm() {
         <Field label="Categories" hint={`${wordsInPlay} words in play`}>
           <div className="flex flex-wrap gap-2">
             <Chip selected={settings.categoryIds.length === 0} onClick={() => update({ categoryIds: [] })}>
-              ✨ Everything
+              ✨ {labels.everything}
             </Chip>
             {CATEGORIES.map((c) => (
               <Chip key={c.id} selected={settings.categoryIds.includes(c.id)} onClick={() => toggleCategory(c.id)}>
-                <span aria-hidden>{c.emoji}</span> {c.en}
-                <span lang="ml" className="font-medium text-mist-500">
-                  {c.ml}
-                </span>
+                <span aria-hidden>{c.emoji}</span> {categoryName(c, mode)}
               </Chip>
             ))}
           </div>
@@ -156,11 +164,15 @@ function SetupForm() {
               label="Imposter sees the category"
               hint="Easier for the Imposter. Everyone else sees the category too."
             />
-            <Toggle
-              checked={settings.showEnglish}
-              onChange={(v) => update({ showEnglish: v })}
-              label="Show English under the word"
-              hint="Helpful for friends who read Malayalam slowly."
+            <Segmented<WordDisplay>
+              label="Word display"
+              value={mode}
+              onChange={(wordDisplay) => update({ wordDisplay, showEnglish: wordDisplay !== "ml" })}
+              options={[
+                { value: "both", label: "മലയാളം + English" },
+                { value: "en", label: "English" },
+                { value: "ml", label: "മലയാളം" },
+              ]}
             />
           </div>
           <div className="space-y-2 pt-2">

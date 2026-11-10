@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS: Settings = {
   categoryIds: [],
   imposterHint: false,
   showEnglish: true,
+  wordDisplay: "both",
   timerSeconds: 120,
   voteMode: "group",
 };
@@ -27,6 +28,7 @@ export function isSettings(v: unknown): v is Settings {
     isStrArr(v.categoryIds) &&
     typeof v.imposterHint === "boolean" &&
     typeof v.showEnglish === "boolean" &&
+    (v.wordDisplay === undefined || ["both", "en", "ml"].includes(v.wordDisplay as string)) &&
     [0, 60, 120, 180].includes(v.timerSeconds as number) &&
     (v.voteMode === "group" || v.voteMode === "secret")
   );

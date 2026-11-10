@@ -156,6 +156,13 @@ describe("starting a round", () => {
     const r = startRound(room, ids[0]);
     expect(() => startRound(r, ids[0])).toThrow(/already running/);
   });
+
+  it("rejects empty topic pools without changing a saved game", () => {
+    const { room, ids } = makeRoom();
+    const before = structuredClone(room);
+    expect(() => applyAction(room, ids[0], { type: "startRound" }, T0, { categories: [{ id: "empty", en: "Empty", ml: "ശൂന്യം", emoji: "", words: [] }] })).toThrow(/No words available/);
+    expect(room).toEqual(before);
+  });
 });
 
 describe("clues", () => {
@@ -200,7 +207,7 @@ describe("voting and scoring", () => {
     const v = act(r, ids[0], { type: "startVoting" });
     expect(() => act(v, ids[1], { type: "vote", targetId: ids[1] })).toThrow(/yourself/);
     const late = joinRoom(v, "Late", T0 + 5);
-    expect(() => act(late.room, late.player.id, { type: "vote", targetId: ids[1] })).toThrow(/after/);
+    expect(() => act(late.room, late.player.id, { type: "vote", targetId: ids[1] })).toThrow(/round/);
   });
 
   it("catches the imposter, offers a guess, and scores a wrong guess", () => {
@@ -240,20 +247,91 @@ describe("voting and scoring", () => {
     expect(skipped.players.find((p) => p.id === imp)!.score).toBe(0);
   });
 
-  it("rewards the imposter when an innocent player is voted out", () => {
+  it("keeps the imposter hidden after an incorrect vote until the host ends the round", () => {
     const { room, ids } = makeRoom();
     let r = toVote(room, ids[0]);
     const imp = r.round!.imposterId;
     const victim = ids.find((x) => x !== imp)!;
     for (const id of ids) if (id !== victim) r = act(r, id, { type: "vote", targetId: victim });
     r = act(r, ids[0], { type: "endVoting" });
-    expect(r.round!.phase).toBe("reveal");
+    expect(r.round!.phase).toBe("decision");
     expect(r.round!.eliminatedId).toBe(victim);
+    expect(r.players.every((p) => p.score === 0)).toBe(true);
+    for (const id of ids) {
+      const view = toView(r, id, T0);
+      expect(view.round!.imposterId).toBeNull();
+      expect(view.round!.word).toBeNull();
+    }
+    expect(() => act(r, ids[1], { type: "continueRound" })).toThrow(/host/i);
+    expect(() => act(r, ids[1], { type: "endRound" })).toThrow(/host/i);
+    r = act(r, ids[0], { type: "endRound" });
+    expect(r.round!.phase).toBe("reveal");
     expect(r.players.find((p) => p.id === imp)!.score).toBe(3);
     expect(r.players.filter((p) => p.id !== imp).every((p) => p.score === 0)).toBe(true);
   });
 
-  it("runs one revote on a tie, then lets the imposter escape", () => {
+  it("continues with the same secret and excludes innocent players already voted out", () => {
+    const { room, ids } = makeRoom(["Host", "Anu", "Biju", "Chinnu", "Devi"]);
+    let r = toVote(room, ids[0]);
+    const imp = r.round!.imposterId;
+    const word = r.round!.word;
+    const victim = ids.find((x) => x !== imp)!;
+    for (const id of ids) if (id !== victim) r = act(r, id, { type: "vote", targetId: victim });
+    r = act(r, ids[0], { type: "endVoting" });
+    r = act(r, ids[0], { type: "continueRound" });
+    expect(r.round!.phase).toBe("clues");
+    expect(r.round!.imposterId).toBe(imp);
+    expect(r.round!.word).toEqual(word);
+    expect(r.round!.number).toBe(1);
+    expect(r.round!.cycle).toBe(2);
+    expect(r.round!.clues).toEqual([]);
+    expect(toView(r, victim, T0).round!.you.isEliminated).toBe(true);
+    expect(toView(r, victim, T0).round!.you.isParticipant).toBe(false);
+    expect(toView(r, imp, T0).round!.playerIds).not.toContain(victim);
+    expect(r.roundsPlayed).toBe(0);
+    for (const id of toView(r, imp, T0).round!.playerIds) {
+      expect(turnOf(r.round!)).toBe(id);
+      r = act(r, id, { type: "submitClue", text: "another clue" });
+    }
+    expect(r.round!.phase).toBe("vote");
+    expect(() => act(r, victim, { type: "vote", targetId: imp })).toThrow(/out|round/i);
+    const crew = ids.filter((id) => id !== victim && id !== imp);
+    for (const id of crew) r = act(r, id, { type: "vote", targetId: imp });
+    r = act(r, ids[0], { type: "endVoting" });
+    expect(r.round!.phase).toBe("guess");
+    r = act(r, ids[0], { type: "skipGuess" });
+    expect(r.round!.phase).toBe("reveal");
+    expect(r.roundsPlayed).toBe(1);
+    expect(r.players.find((p) => p.id === victim)!.score).toBe(1);
+  });
+
+  it("awards one imposter win when the host stops after three unsuccessful clue cycles", () => {
+    const { room, ids } = makeRoom(["Host", "Anu", "Biju", "Chinnu", "Devi", "Ebi"]);
+    let r = startRound(room, ids[0]);
+    const imp = r.round!.imposterId;
+    const victims = ids.filter((id) => id !== imp).slice(0, 3);
+    for (let cycle = 1; cycle <= 3; cycle++) {
+      r = act(r, ids[0], { type: "startVoting" });
+      const victim = victims[cycle - 1];
+      for (const id of toView(r, imp, T0).round!.playerIds) {
+        if (id !== victim) r = act(r, id, { type: "vote", targetId: victim });
+      }
+      r = act(r, ids[0], { type: "endVoting" });
+      expect(r.round!.phase).toBe("decision");
+      expect(r.round!.cycle).toBe(cycle);
+      expect(r.players.every((p) => p.score === 0)).toBe(true);
+      expect(toView(r, ids[0], T0).round!.imposterId).toBeNull();
+      if (cycle < 3) r = act(r, ids[0], { type: "continueRound" });
+    }
+    r = act(r, ids[0], { type: "endGame" });
+    expect(r.status).toBe("ended");
+    expect(r.roundsPlayed).toBe(1);
+    expect(r.players.find((p) => p.id === imp)!.score).toBe(3);
+    expect(r.players.filter((p) => p.id !== imp).every((p) => p.score === 0)).toBe(true);
+    expect(finalize(r)).toEqual(r);
+  });
+
+  it("runs one revote on a tie, then lets the host decide whether to stop", () => {
     const { room, ids } = makeRoom();
     let r = toVote(room, ids[0]);
     const [a, b, c, d] = ids;
@@ -269,17 +347,47 @@ describe("voting and scoring", () => {
     r = act(r, c, { type: "vote", targetId: a });
     r = act(r, d, { type: "vote", targetId: b });
     r = act(r, ids[0], { type: "endVoting" });
-    expect(r.round!.phase).toBe("reveal");
+    expect(r.round!.phase).toBe("decision");
     expect(r.round!.noElimination).toBe(true);
+    r = act(r, ids[0], { type: "endRound" });
     expect(r.players.find((p) => p.id === r.round!.imposterId)!.score).toBe(3);
   });
 
-  it("ends the round with no elimination when voting closes without votes", () => {
+  it("waits for the host when voting closes without votes", () => {
     const { room, ids } = makeRoom();
     let r = toVote(room, ids[0]);
     r = act(r, ids[0], { type: "endVoting" });
-    expect(r.round!.phase).toBe("reveal");
+    expect(r.round!.phase).toBe("decision");
     expect(r.round!.noElimination).toBe(true);
+  });
+});
+
+describe("continuing a game", () => {
+  it("keeps the same room and cumulative scores for 100 rounds until the host ends it", () => {
+    const { room, ids } = makeRoom();
+    let current = room;
+    for (let number = 1; number <= 100; number++) {
+      const before = current.players.map((p) => p.score);
+      current = startRound(current, ids[0]);
+      expect(current.round!.number).toBe(number);
+      expect(current.players.map((p) => p.score)).toEqual(before);
+      expect(() => act(current, ids[1], { type: "endGame" })).toThrow(/host/i);
+      current = act(current, ids[0], { type: "startVoting" });
+      current = act(current, ids[0], { type: "endVoting" });
+      current = act(current, ids[0], { type: "endRound" });
+      expect(current.code).toBe(room.code);
+      expect(current.status).toBe("playing");
+      expect(current.round!.phase).toBe("reveal");
+      expect(current.roundsPlayed).toBe(number);
+      expect(current.players.map((p, i) => p.score - before[i])).toEqual(
+        current.players.map((p) => p.id === current.round!.imposterId ? 3 : 0),
+      );
+    }
+    const ended = act(current, ids[0], { type: "endGame" });
+    expect(ended.status).toBe("ended");
+    expect(ended.code).toBe(room.code);
+    expect(ended.players).toEqual(current.players);
+    expect(ended.roundsPlayed).toBe(100);
   });
 });
 
@@ -339,6 +447,26 @@ describe("players leaving", () => {
 });
 
 describe("views", () => {
+  it("counts only valid votes by eligible players without revealing their choices", () => {
+    const { room, ids } = makeRoom();
+    const voting = toVote(room, ids[0]);
+    const stored = { ...voting, round: { ...voting.round!, votes: { [ids[0]]: ids[1], [ids[1]]: "left", [ids[2]]: ids[2], outsider: ids[0] } } };
+    const view = toView(stored, ids[3], T0);
+    expect(view.round!.votesIn).toBe(1);
+    expect(view.players.filter((p) => p.hasVoted).map((p) => p.id)).toEqual([ids[0]]);
+    expect(view.round!.you.votedFor).toBeNull();
+    expect(view.round!.tally).toBeNull();
+  });
+
+  it("updates translations in old saved rooms without rewriting the hidden round", () => {
+    const { room, ids } = makeRoom();
+    const started = startRound(room, ids[0]);
+    const stored = { ...started, round: { ...started.round!, word: { ml: "കപ്പ", en: "Kappa" } } };
+    const crew = ids.find((id) => id !== stored.round.imposterId)!;
+    expect(toView(stored, crew, T0).round!.you.word!.en).toBe("Tapioca");
+    expect(stored.round.word.en).toBe("Kappa");
+  });
+
   it("hides secrets from the wrong eyes", () => {
     const { room, ids } = makeRoom();
     const r = startRound(room, ids[0], ["food"]);
@@ -370,6 +498,7 @@ describe("views", () => {
     const { room, ids } = makeRoom();
     let r = toVote(room, ids[0]);
     r = act(r, ids[0], { type: "endVoting" });
+    r = act(r, ids[0], { type: "endRound" });
     const v = toView(r, ids[1], T0 + 2, cats);
     expect(v.round!.imposterId).toBe(r.round!.imposterId);
     expect(v.round!.word).toEqual(r.round!.word);

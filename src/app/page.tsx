@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Mark } from "@/components/mark";
+import Image from "next/image";
 import { ResumeRound } from "@/components/resume-round";
 import { Screen, Spotlight } from "@/components/shell";
 import { ButtonLink } from "@/components/ui";
@@ -9,12 +9,17 @@ export default function Home() {
     <Screen className="justify-center overflow-hidden text-center">
       <Spotlight />
       <div className="animate-rise">
-        <Mark className="mx-auto h-28 w-28 drop-shadow-[0_24px_50px_rgba(139,92,246,0.45)]" />
+        <Image
+          src="/brand/face-portrait.png"
+          width={1280}
+          height={1280}
+          sizes="144px"
+          alt="Imposter"
+          preload
+          className="mx-auto h-36 w-36 drop-shadow-[0_16px_28px_rgba(0,0,0,0.25)]"
+        />
       </div>
       <h1 className="mt-7 text-6xl font-extrabold tracking-tight text-white animate-rise [animation-delay:80ms]">Imposter</h1>
-      <p lang="ml" className="mt-1 text-2xl font-semibold text-violet-400 animate-rise [animation-delay:140ms]">
-        മലയാളം
-      </p>
       <p className="mx-auto mt-5 max-w-xs text-lg leading-relaxed text-mist-400 animate-rise [animation-delay:200ms]">
         Everyone gets the same secret word. One of you doesn&apos;t. Find the Imposter before they fool you.
       </p>

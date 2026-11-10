@@ -89,7 +89,7 @@ ok(rv.round.imposterId === imposterId && rv.round.word.ml === word.ml, "reveal s
 ok(rv.players.find(p => p.id === imposterId).score === 2 && rv.players.filter(p => p.id !== imposterId).every(p => p.score === 1), "scores: imposter 2, crew 1 each");
 ok(rv.roundsPlayed === 1, "roundsPlayed = 1");
 
-console.log("4. round 2 (spoken, movies) + no repeats + end game");
+console.log("4. round 2 (spoken, movies) + no repeats");
 ok((await act(host, { type: "setSettings", settings: { clueMode: "spoken", imposterHint: true } })).status === 200, "switched to spoken + hint");
 const r2 = await act(host, { type: "startRound", categoryIds: ["movies"] });
 ok(r2.status === 200 && r2.json.view.round.number === 2 && r2.json.view.round.category?.id === "movies", "round 2 started in movies with hint visible");
@@ -98,19 +98,46 @@ ok((await act(host, { type: "startVoting" })).json.view.round.phase === "vote", 
 const impId2 = (await Promise.all(players.map(async p => [(await view(p)).json.view.round.you.isImposter, p.playerId]))).find(([i]) => i)[1];
 const victim = players.find(p => p.playerId !== impId2).playerId;
 for (const p of players) if (p.playerId !== victim) await act(p, { type: "vote", targetId: victim });
-const end2 = await act(host, { type: "endVoting" });
-ok(end2.status === 200 && end2.json.view.round.phase === "reveal" && end2.json.view.round.eliminatedId === victim, "innocent voted out → reveal");
+const decision = await act(host, { type: "endVoting" });
+ok(decision.status === 200 && decision.json.view.round.phase === "decision" && decision.json.view.round.imposterId === null, "wrong vote waits for host without revealing the imposter");
+ok((await act(players[1], { type: "continueRound" })).status === 403, "only host can continue");
+const continued = await act(host, { type: "continueRound" });
+ok(continued.json.view.round.phase === "clues" && continued.json.view.round.number === 2 && continued.json.view.round.cycle === 2, "same round continues with more clues");
+ok(!continued.json.view.round.playerIds.includes(victim), "innocent player sits out");
+await act(host, { type: "startVoting" });
+ok((await act(players.find(p => p.playerId === victim), { type: "vote", targetId: impId2 })).status === 403, "voted-out player cannot vote again");
+await act(host, { type: "endVoting" });
+const end2 = await act(host, { type: "endRound" });
+ok(end2.status === 200 && end2.json.view.round.phase === "reveal", "host ends the round → reveal");
 ok(end2.json.view.players.find(p => p.id === impId2).score >= 3, "imposter earned 3 for escaping");
 // no repeat check across many rounds in a tiny selection would need many rounds; check keys differ so far
 const w1 = word.ml, w2 = end2.json.view.round.word.ml;
 ok(w1 !== w2, "different words in the two rounds");
+
+console.log("5. continue through 25 rounds; only the host can finish the game");
+ok((await act(players[1], { type: "endGame" })).status === 403, "another player cannot end the game");
+let previous = end2.json.view;
+for (let number = 3; number <= 25; number++) {
+  const next = await act(host, { type: "startRound" });
+  ok(next.status === 200 && next.json.view.round.number === number && next.json.view.status === "playing", `round ${number} started in the same room`);
+  ok(next.json.view.players.every(p => p.score === previous.players.find(old => old.id === p.id).score), `round ${number} carries previous scores`);
+  await act(host, { type: "startVoting" });
+  await act(host, { type: "endVoting" });
+  const completed = await act(host, { type: "endRound" });
+  const current = completed.json.view;
+  ok(completed.status === 200 && current.code === code && current.status === "playing" && current.round.phase === "reveal" && current.roundsPlayed === number, `round ${number} finishes without ending or losing the room`);
+  ok(current.players.every(p => p.score === previous.players.find(old => old.id === p.id).score + (p.id === current.round.imposterId ? 3 : 0)), `round ${number} adds points exactly once`);
+  previous = current;
+}
 const ended = await act(host, { type: "endGame" });
 ok(ended.status === 200 && ended.json.view.status === "ended", "game ended");
+ok(ended.json.view.players.every(p => p.score === previous.players.find(old => old.id === p.id).score), "host ending the game preserves final points");
+ok((await view(host)).status === 200, "finished room remains available for the final standings");
 ok((await api(`/api/rooms/${code}/join`, { method: "POST", body: { name: "Late" } })).status === 410, "cannot join an ended game");
 const again = await act(host, { type: "backToLobby", resetScores: true });
 ok(again.json.view.status === "lobby" && again.json.view.players.every(p => p.score === 0), "back to lobby with scores reset");
 
-console.log("5. concurrency: 6 simultaneous joins");
+console.log("6. concurrency: 6 simultaneous joins");
 const joins = await Promise.all(Array.from({ length: 6 }, (_, i) => api(`/api/rooms/${code}/join`, { method: "POST", body: { name: `P${i}` } })));
 ok(joins.every(j => j.status === 201), "all concurrent joins succeeded");
 const final = (await view(host)).json.view;

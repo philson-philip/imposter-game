@@ -1,4 +1,5 @@
-export type Word = { ml: string; en: string };
+export type Word = { id?: string; ml: string; en: string; transliteration?: string };
+export type WordDisplay = "both" | "en" | "ml";
 
 export type Category = {
   id: string;
@@ -17,8 +18,9 @@ export type Settings = {
   categoryIds: string[];
   /** Show the imposter which category the word belongs to. */
   imposterHint: boolean;
-  /** Show the English transliteration under the Malayalam word. */
+  /** Legacy preference, used when loading settings saved before wordDisplay. */
   showEnglish: boolean;
+  wordDisplay?: WordDisplay;
   timerSeconds: TimerSeconds;
   voteMode: VoteMode;
 };

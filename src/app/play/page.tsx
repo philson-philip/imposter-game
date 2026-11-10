@@ -7,6 +7,8 @@ import { SecretCard } from "@/components/secret-card";
 import { Screen, Spotlight } from "@/components/shell";
 import { Timer } from "@/components/timer";
 import { Button, Eyebrow } from "@/components/ui";
+import { VotingProgress } from "@/components/voting-progress";
+import { categoryName, settingsDisplay, uiLanguage, wordParts } from "@/lib/content";
 import { CATEGORIES, categoryOf } from "@/data/words";
 import { SCORING, clueOrder, createRound, scoreRound, tallyVotes } from "@/lib/game";
 import { useHydrated, useStoredRound, useStoredSession, useStoredSettings, useWakeLock } from "@/lib/hooks";
@@ -73,7 +75,7 @@ function Play() {
       <header className="flex items-center justify-between gap-3 pt-1">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-mist-500">Round {round.number}</p>
-          <p className="font-semibold text-white">{showCategory ? `${category.emoji} ${category.en}` : "🤫 Category hidden"}</p>
+          <p className="font-semibold text-white">{showCategory ? `${category.emoji} ${categoryName(category, settingsDisplay(settings))}` : "🤫 Category hidden"}</p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => setQuitOpen(true)}>
           Quit
@@ -97,7 +99,7 @@ function Play() {
       )}
       {round.phase === "vote" &&
         (settings.voteMode === "secret" ? (
-          <BallotPhase round={round} players={players} />
+          <BallotPhase round={round} players={players} settings={settings} />
         ) : (
           <VotePhase players={players} onVote={(voted) => updateRound({ voted, phase: "reveal" })} />
         ))}
@@ -186,7 +188,7 @@ function PeekPhase({
           isImposter={round.peekIndex === round.imposter}
           word={round.word}
           category={category}
-          showEnglish={settings.showEnglish}
+          mode={settingsDisplay(settings)}
           showHint={settings.imposterHint}
         />
       </div>
@@ -271,16 +273,23 @@ function VotePhase({ players, onVote }: { players: string[]; onVote: (voted: num
 
 /* ---------- secret ballot ---------- */
 
-function BallotPhase({ round, players }: { round: Round; players: string[] }) {
-  const voter = round.votes.findIndex((v) => v === null);
+function BallotPhase({ round, players, settings }: { round: Round; players: string[]; settings: Settings }) {
+  const votes = players.map((_, voter) => {
+    const target = round.votes[voter];
+    return Number.isInteger(target) && target !== null && target >= 0 && target < players.length && target !== voter ? target : null;
+  });
+  const votingPlayers = players.map((name, index) => ({ id: String(index), name, hasVoted: votes[index] !== null }));
+  const progress = <VotingProgress players={votingPlayers} eligibleIds={votingPlayers.map((player) => player.id)} language={uiLanguage(settingsDisplay(settings))} className="mt-4" />;
+  const voter = votes.findIndex((v) => v === null);
   const [showing, setShowing] = useState(false);
 
   if (voter === -1) {
-    const { counts, eliminated, leaders } = tallyVotes(round.votes, players.length);
+    const { counts, eliminated, leaders } = tallyVotes(votes, players.length);
     const max = Math.max(1, ...counts);
     return (
       <section className="flex flex-1 flex-col">
         <h2 className="mt-6 text-3xl font-extrabold tracking-tight text-white">The votes are in</h2>
+        {progress}
         <ul className="mt-5 space-y-3">
           {players.map((name, i) => (
             <li key={i} className="flex items-center gap-3">
@@ -325,6 +334,7 @@ function BallotPhase({ round, players }: { round: Round; players: string[] }) {
         </Eyebrow>
         <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-white">Pass the phone to {name}</h2>
         <p className="mt-2 text-mist-400">Everyone votes in private.</p>
+        {progress}
         <div className="mt-8 w-full">
           <Button onClick={() => setShowing(true)}>I&apos;m {name} — show my ballot</Button>
         </div>
@@ -335,6 +345,7 @@ function BallotPhase({ round, players }: { round: Round; players: string[] }) {
   return (
     <section className="flex flex-1 flex-col">
       <h2 className="mt-6 text-3xl font-extrabold tracking-tight text-white">{name}, who is the Imposter?</h2>
+      {progress}
       <div className="mt-5 grid grid-cols-2 gap-3">
         {players.map((p, i) =>
           i === voter ? null : (
@@ -343,7 +354,7 @@ function BallotPhase({ round, players }: { round: Round; players: string[] }) {
               type="button"
               onClick={() => {
                 setShowing(false);
-                updateRound({ votes: round.votes.map((v, j) => (j === voter ? i : v)) });
+                updateRound({ votes: votes.map((v, j) => (j === voter ? i : v)) });
               }}
               className="flex items-center gap-3 rounded-2xl border border-ink-700 bg-ink-800 p-3 text-left transition hover:border-ink-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
             >
@@ -379,6 +390,8 @@ function RevealPhase({
   onHome: () => void;
 }) {
   const [step, setStep] = useState<0 | 1 | 2 | 3>(() => (round.scored ? 3 : 0));
+  const mode = settingsDisplay(settings);
+  const { primary, primaryLang, secondary } = wordParts(round.word, mode, category.id);
   const caught = round.voted === round.imposter;
   const imposterName = players[round.imposter];
   const deltas = scoreRound(round, players.length);
@@ -440,12 +453,12 @@ function RevealPhase({
         </div>
         <div className="mt-8 rounded-3xl border border-ink-700 bg-ink-800 p-5 text-center animate-rise [animation-delay:300ms]">
           <Eyebrow>The word was</Eyebrow>
-          <p lang="ml" className="mt-3 text-4xl font-extrabold leading-[1.3] text-white [overflow-wrap:anywhere]">
-            {round.word.ml}
+          <p lang={primaryLang} className="mt-3 text-4xl font-extrabold leading-[1.3] text-white [overflow-wrap:anywhere]">
+            {primary}
           </p>
-          <p className="mt-1 text-xl font-medium text-violet-300">{round.word.en}</p>
+          {secondary && <p className="mt-1 text-xl font-medium text-violet-300">{secondary}</p>}
           <p className="mt-2 text-sm text-mist-400">
-            {category.emoji} {category.en}
+            {category.emoji} {categoryName(category, mode)}
           </p>
         </div>
         <div className="mt-auto pt-8">
